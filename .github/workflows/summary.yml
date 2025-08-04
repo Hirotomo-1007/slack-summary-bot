@@ -2,7 +2,8 @@ name: Slack Summary Bot
 
 on:
   schedule:
-    - cron: '0 9 * * *'   # 毎日 17:00 JST
+    - cron: '30 2 * * *'  # JST 11:30 = UTC 02:30 → 夜〜午前のまとめ
+    - cron: '0 11 * * *'  # JST 20:00 = UTC 11:00 → 午後のまとめ
   workflow_dispatch:
 
 jobs:
@@ -14,7 +15,15 @@ jobs:
         with:
           python-version: '3.10'
       - run: pip install -r requirements.txt
-      - env:
+      - name: Run Slack Summary
+        env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          GROQ_API_KEY:    ${{ secrets.GROQ_API_KEY }}
-        run: python main.py
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          hour=$(date -u +"%H")
+          if [ "$hour" -eq 11 ]; then
+            export SUMMARY_MODE=afternoon  # JST 20:00
+          else
+            export SUMMARY_MODE=morning    # JST 11:30
+          fi
+          python main.py
