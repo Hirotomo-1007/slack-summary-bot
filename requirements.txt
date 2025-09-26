@@ -1,3 +1,3 @@
 slack_sdk
-groq
+groq>=0.9.0
 pytz
