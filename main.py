@@ -9,7 +9,7 @@ GROQ_TOKEN = os.environ["GROQ_API_KEY"]
 HUMAN_UID = "UJJ7FT620"
 
 # ←この行を追加（環境変数が無ければ既定で70Bを使う）
-MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-70b-versatile")
+MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
 
 client = WebClient(token=BOT_TOKEN)
 
