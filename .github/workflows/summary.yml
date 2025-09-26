@@ -2,19 +2,68 @@ name: Slack Summary Bot
 
 on:
   schedule:
-    - cron: '30 2 * * *'  # JST 11:30 = UTC 02:30 → 夜〜午前のまとめ
-    - cron: '0 11 * * *'  # JST 20:00 = UTC 11:00 → 午後のまとめ
+    - cron: '30 2 * * *'   # JST 11:30 = UTC 02:30
+    - cron: '0 11 * * *'   # JST 20:00 = UTC 11:00
   workflow_dispatch:
 
 jobs:
   run-summary:
     runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Tokyo   # dateコマンドをJST基準に
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ======== ここからデバッグ3連発 ========
+      - name: Debug 1) 時刻とサマリー範囲
+        run: |
+          echo "System date:"
+          date
+          echo "UTC hour now: $(date -u +%H)"
+          echo "JST昨日00:00 -> $(date -d 'yesterday 00:00' +%s)"
+          echo "JST今日 00:00 -> $(date -d 'today 00:00' +%s)"
+
+      - name: Debug 2) 必要Secretsの存在チェック（値は出さない）
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          test -n "$SLACK_BOT_TOKEN" && echo "SLACK_BOT_TOKEN: set" || (echo "SLACK_BOT_TOKEN: NOT SET"; exit 1)
+          test -n "$GROQ_API_KEY" && echo "GROQ_API_KEY: set" || echo "GROQ_API_KEY: NOT SET"
+
+      - name: Debug 3) Slackトークンと（あれば）チャンネル読み取り
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}  # 使っていなければ未設定でOK
+        run: |
+          set -e
+          echo "auth.test…"
+          curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" https://slack.com/api/auth.test | tee /tmp/auth.json
+          jq -e '.ok == true' /tmp/auth.json || (echo "=> Slack token invalid/revoked/missing_scope"; exit 1)
+
+          # チャンネルIDが設定されていれば履歴を5件だけ試し取得
+          if [ -n "$SLACK_CHANNEL_ID" ]; then
+            FROM=$(date -d 'yesterday 00:00' +%s)
+            TO=$(date -d 'today 00:00' +%s)
+            echo "conversations.history… channel=$SLACK_CHANNEL_ID"
+            curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              "https://slack.com/api/conversations.history?channel=${SLACK_CHANNEL_ID}&limit=5&oldest=${FROM}&latest=${TO}&inclusive=true" \
+              | tee /tmp/hist.json
+            echo -n "ok: "; jq .ok /tmp/hist.json
+            echo -n "error: "; jq -r '.error // "-" ' /tmp/hist.json
+            echo -n "messages length: "; jq '.messages | length' /tmp/hist.json
+          else
+            echo "SKIP conversations.history（SLACK_CHANNEL_ID 未設定）"
+          fi
+      # ======== デバッグここまで ========
+
       - name: Run Slack Summary
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
