@@ -8,6 +8,9 @@ BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 GROQ_TOKEN = os.environ["GROQ_API_KEY"]
 HUMAN_UID = "UJJ7FT620"
 
+# ←この行を追加（環境変数が無ければ既定で70Bを使う）
+MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-70b-versatile")
+
 client = WebClient(token=BOT_TOKEN)
 
 # ---- 要約関数 ------------------------------------------------
@@ -21,7 +24,7 @@ def summarize(text: str) -> str:
         ===
     """)
     res = g.chat.completions.create(
-        model="llama3-70b-8192",
+        model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=300,
     )
